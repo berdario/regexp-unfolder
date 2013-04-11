@@ -4,6 +4,6 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
-                 [net.cgrand/parsley  "0.9.1"]
+                 [instaparse "1.0.0"]
                  [reduce-fsm "0.1.0-SNAPSHOT"]]
   :main regexp-unfolder.core)

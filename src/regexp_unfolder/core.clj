@@ -1,24 +1,23 @@
 (ns regexp-unfolder.core
-  (:require [net.cgrand.parsley :as p]))
+  (:require [instaparse.core :as insta]))
 
-(def metachars "\\\\|*+.\\-\\[\\]$()^" )
-(def rchar (re-pattern (str \[ \^ metachars \] \| \\ \\ \[ metachars \])))
+(def rchar #"[^\\\-\[\]]|\\." )
 
-(comment (def regexp (p/parser {:main :re
-                        :root-tag :re}
-                       :char rchar
-                       :range [:char "-" :char]
-                       :set-item #{:range :char}
-                       :set-items :set-item*
-                       :positive-set ["["  :set-items "]"]
-                       :negative-set ["[^" :set-items "]"]
-                       :set #{:positive-set :negative-set}
-                       :group ["(" :re ")"]
-                       :elementary-re #{:group "." "$" :char :set}
-                       :star [:elementary-re "*"]
-                       :plus [:elementary-re "+"]
-                       :base-re #{:elementary-re :star :plus}
-                       :concat [:simple-re :base-re]
-                       :simple-re #{:concat :base-re}
-                       :union [:re "|" :simple-re]
-                       :re #{:union :simple-re} )))
+(def regexp (insta/parser 
+             (str "
+             re = union | simple-re
+             union = re '|' simple-re
+             simple-re = concat | base-re
+             concat = simple-re base-re
+             base-re = elementary-re | star | plus
+             star = elementary-re '*'
+             plus = elementary-re '+'
+             elementary-re = group | '.' | '$' | char | set
+             group = '(' re ')'
+             set = positive-set | negative-set
+             positive-set = '['  set-items ']'
+             negative-set = '[^' set-items ']'
+             set-items = set-item*
+             set-item = range | char
+             range = char '-' char
+             char = #'" rchar "'" )))
