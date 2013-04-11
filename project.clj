@@ -5,5 +5,5 @@
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.5.1"]
                  [instaparse "1.0.0"]
-                 [reduce-fsm "0.1.0-SNAPSHOT"]]
+                 [org.clojure/core.logic "0.8.3"]]
   :main regexp-unfolder.core)
