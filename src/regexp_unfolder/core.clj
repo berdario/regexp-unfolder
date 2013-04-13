@@ -2,8 +2,8 @@
   (:require [instaparse.core :as insta])
   (:require [clojure.core.logic :as l]))
 
-(def regexp (insta/parser 
-             "re = union | simple-re
+(def parse-regexp (insta/parser 
+             "re = union | simple-re?
              union = re '|' simple-re
              simple-re = concat | base-re
              concat = simple-re base-re
@@ -23,50 +23,58 @@
 
 (declare fns)
 
-(defn handle-tree [[ type & nodes]]
-  ((fns type) nodes))
+(defn handle-tree [q qto [ type & nodes]]
+  (if (nil? nodes)
+    [[q "" qto]]
+    ((fns type) q qto nodes)))
 
-(defn star [node &] handle-tree node)
+(defn star [q qto node &] handle-tree q qto node)
 
-(defn plus [node &] handle-tree node)
+(defn plus [q qto node &] handle-tree q qto node)
 
-(defn any-char [node &] handle-tree node )
+(defn any-char [q qto node &] handle-tree q qto node )
 
-(defn handle-set [node &] handle-tree node)
+(defn handle-set [q qto node &] handle-tree q qto node)
 
-(defn handle-negset [node &] handle-tree node)
+(defn handle-negset [q qto node &] handle-tree q qto node)
 
-(defn items [nodes] (map handle-tree nodes))
+(defn items [q qto nodes] (map (partial handle-tree q qto) nodes))
 
-(defn handle-range [node &] handle-tree node)
+(defn handle-range [q qto node &] handle-tree q qto node)
 
-(defn handle-char [node &] (print node) )
+(defn handle-char [q qto node &] (print node) )
 
-(def handle-first (comp handle-tree first))
+(defn handle-concat [q qto nodes] 
+  (let [syms (for [x  (rest nodes)] (gensym q))]
+    (mapcat handle-tree  (cons q syms) (conj syms qto ) nodes)
+  ))
 
-(def fns {:re handle-first, :union handle-first, :simple-re handle-first, :concat handle-first, :base-re handle-first, :star star, :plus plus, :elementary-re handle-first, :any any-char, :group handle-first, :set handle-first, :positive-set handle-set, :negative-set handle-negset, :set-items items, :set-item handle-first, :range handle-range, :char handle-char})
+(defn handle-first [q qto node &] (handle-tree q qto node))
 
+(def fns {:re handle-first, :union handle-first, :simple-re handle-first, :concat handle-concat, :base-re handle-first, :star star, :plus plus, :elementary-re handle-first, :any any-char, :group handle-first, :set handle-first, :positive-set handle-set, :negative-set handle-negset, :set-items items, :set-item handle-first, :range handle-range, :char handle-char})
+
+(l/defne transition-membero
+  [state trans newstate otransition]
+  ([_ _ _ [state trans-set newstate]]
+     (l/membero trans trans-set)))
  
-;; Encoding a regexp finite state machine in core.logic, adapted from a snippet made by Peteris Erins
-;; the state space is #{'ok 'fail}, 'ok is the accepting state, the alphabet is made of all the printable characters
-;; most of the logic thus deals with the starting state and the transitions
-
-(declare transitions)
- 
-(defn transitiono [state trans new transitions]
+(defn transitiono [state trans newstate transitions]
   (l/conde
    [(l/fresh [f] 
              (l/firsto transitions f)
-             (l/== [state trans new] f))]
+             (transition-membero state trans newstate f))]
    [(l/fresh [r]
              (l/resto transitions r)
-             (transitiono state trans new r))])
+             (transitiono state trans newstate r))])
   )
+
+(declare transitions)
  
+;; Recognize a regexp finite state machine encoded in core.logic, adapted from a snippet made by Peteris Erins
+
 (defn recognizeo
   ([input]
-     (l/fresh [q0]
-            (recognize q0 input)))
+     (recognizeo 'q0 input))
   ([q input]
      (l/matche [input] ; start pattern matching on the input
         (['("")]
@@ -74,13 +82,11 @@
         ([[i . nput]]
            (l/fresh [qto]
                   (transitiono q i qto transitions) ; assert it must be what we transition to qto from q with input symbol i
-                  (recognize qto nput)))))) ; recognize the remainder
+                  (recognizeo qto nput)))))) ; recognize the remainder
  
 
 (defn unfold [regex] 
   (def transitions
-    [['ok \a 'ok]
-     ['ok \b 'fail]
-     ['fail \a 'fail]
-     ['fail \b 'fail]] )
+    [['q0 [""] 'ok]
+     ['q0 [\a \b] 'q0]] )
   (map (partial apply str) (l/run* [q] (recognizeo q))))
