@@ -2,6 +2,7 @@
   (:require [instaparse.core :as insta])
   (:require [clojure.core.logic :as l])
   (:require [clojure.set :refer [union difference]])
+  (:gen-class :methods [#^{:static true} [unfold [String] clojure.lang.LazySeq]])
 )
 
 (def parse-regexp (insta/parser 
@@ -103,7 +104,7 @@
                   (recognizeo qto nput)))))) ; recognize the remainder
  
 
-(defn unfold [regex] 
+(defn -unfold [regex] 
   (def transitions 
     (handle-tree 'q0 'ok (parse-regexp regex)))
   (map (partial apply str) (l/run* [q] (recognizeo q))))
