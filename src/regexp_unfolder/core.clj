@@ -1,6 +1,8 @@
 (ns regexp-unfolder.core
   (:require [instaparse.core :as insta])
-  (:require [clojure.core.logic :as l]))
+  (:require [clojure.core.logic :as l])
+  (:require [clojure.set :refer [union difference]])
+)
 
 (def parse-regexp (insta/parser 
              "re = union | simple-re?
@@ -10,7 +12,7 @@
              base-re = elementary-re | star | plus
              star = elementary-re '*'
              plus = elementary-re '+'
-             elementary-re = group | any | '$' | char | set
+             elementary-re = group | char | '$' | any | set
              any = '.'
              group = '(' re ')'
              set = positive-set | negative-set
@@ -21,37 +23,53 @@
              range = char '-' char
              char = #'[^\\\\\\-\\[\\]]|\\.'" ))
 
-(declare fns)
+(def printables (set (map char (range 32 127))))
+
+(declare fns handle-first)
 
 (defn handle-tree [q qto [ type & nodes]]
   (if (nil? nodes)
-    [[q "" qto]]
-    ((fns type) q qto nodes)))
+    [[q [""] qto]]
+    ((fns type handle-first) q qto nodes)))
 
-(defn star [q qto node &] handle-tree q qto node)
+(defn star [q qto node &]
+  (cons [q [""] qto]
+         (handle-tree q q (first node))))
 
-(defn plus [q qto node &] handle-tree q qto node)
+(defn plus [q qto node &] 
+  (concat (handle-tree q qto (first node))
+          (handle-tree qto qto (first node))))
 
-(defn any-char [q qto node &] handle-tree q qto node )
+(defn any-char [q qto & _] [[q (vec printables) qto]] )
 
-(defn handle-set [q qto node &] handle-tree q qto node)
+(defn char-range [[c1 _ c2]]
+  (let [extract-char (comp int first seq second)]
+    (set (map char (range (extract-char c1) (inc (extract-char c2)))))))
 
-(defn handle-negset [q qto node &] handle-tree q qto node)
+(defn items [nodes]
+  (union (mapcat
+    (fn [[_ [type & ns]]]
+      (if (= type :char)
+        #{(first ns)}        
+        (char-range ns)))
+    (rest (second nodes)))))
 
-(defn items [q qto nodes] (map (partial handle-tree q qto) nodes))
+(defn handle-set [q qto node &] [[q (vec (items node)) qto]])
 
-(defn handle-range [q qto node &] handle-tree q qto node)
+(defn handle-negset [q qto node &] [[q (vec (difference printables (items node))) qto]])
 
-(defn handle-char [q qto node &] (print node) )
+(defn handle-range [q qto & nodes] [[q (vec (char-range nodes)) qto]])
+
+(defn handle-char [q qto node &] [[q (vec node) qto]] )
 
 (defn handle-concat [q qto nodes] 
   (let [syms (for [x  (rest nodes)] (gensym q))]
-    (mapcat handle-tree  (cons q syms) (conj syms qto ) nodes)
+    (mapcat handle-tree  (cons q syms) (concat syms [qto] ) nodes)
   ))
 
-(defn handle-first [q qto node &] (handle-tree q qto node))
+(defn handle-first [q qto [node & _]] (handle-tree q qto node))
 
-(def fns {:re handle-first, :union handle-first, :simple-re handle-first, :concat handle-concat, :base-re handle-first, :star star, :plus plus, :elementary-re handle-first, :any any-char, :group handle-first, :set handle-first, :positive-set handle-set, :negative-set handle-negset, :set-items items, :set-item handle-first, :range handle-range, :char handle-char})
+(def fns {:concat handle-concat, :star star, :plus plus, :any any-char, :positive-set handle-set, :negative-set handle-negset, :char handle-char})
 
 (l/defne transition-membero
   [state trans newstate otransition]
@@ -70,7 +88,7 @@
 
 (declare transitions)
  
-;; Recognize a regexp finite state machine encoded in core.logic, adapted from a snippet made by Peteris Erins
+;; Recognize a regexp finite state machine encoded in triplets [state, transition, next-state], adapted from a snippet made by Peteris Erins
 
 (defn recognizeo
   ([input]
@@ -86,7 +104,6 @@
  
 
 (defn unfold [regex] 
-  (def transitions
-    [['q0 [""] 'ok]
-     ['q0 [\a \b] 'q0]] )
+  (def transitions 
+    (handle-tree 'q0 'ok (parse-regexp regex)))
   (map (partial apply str) (l/run* [q] (recognizeo q))))
