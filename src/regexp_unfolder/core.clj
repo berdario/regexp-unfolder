@@ -106,5 +106,6 @@
 
 (defn -unfold [regex] 
   (def transitions 
-    (handle-tree 'q0 'ok (parse-regexp regex)))
+    (reverse ; recognizeo starts from 'ok, thus reversing the transitions makes it ~4 times faster
+     (handle-tree 'q0 'ok (parse-regexp regex))))
   (map (partial apply str) (l/run* [q] (recognizeo q))))
