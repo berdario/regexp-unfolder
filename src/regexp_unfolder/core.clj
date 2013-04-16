@@ -59,8 +59,6 @@
 
 (defn handle-negset [q qto node &] [[q (vec (difference printables (items node))) qto]])
 
-(defn handle-range [q qto & nodes] [[q (vec (char-range nodes)) qto]])
-
 (defn handle-char [q qto node &] [[q (vec node) qto]] )
 
 (defn handle-concat [q qto nodes] 
@@ -71,6 +69,9 @@
 (defn handle-first [q qto [node & _]] (handle-tree q qto node))
 
 (def fns {:concat handle-concat, :star star, :plus plus, :any any-char, :positive-set handle-set, :negative-set handle-negset, :char handle-char})
+
+(defn parse-to-fsm [regex]
+  (handle-tree 'q0 'ok (parse-regexp regex)))
 
 (l/defne transition-membero
   [state trans newstate otransition]
@@ -107,5 +108,5 @@
 (defn -unfold [regex] 
   (def transitions 
     (reverse ; recognizeo starts from 'ok, thus reversing the transitions makes it ~4 times faster
-     (handle-tree 'q0 'ok (parse-regexp regex))))
+     (parse-to-fsm regex)))
   (map (partial apply str) (l/run* [q] (recognizeo q))))
